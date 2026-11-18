@@ -1,0 +1,351 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    // Entity Validation Helpers
+    function isValidUserProfile(data, userId) {
+      return data.userId == userId &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 80 &&
+             data.role in ['STUDENT', 'TEACHER'] &&
+             (!('track' in data) || (data.track is string && data.track.size() <= 120)) &&
+             data.preferredLanguage in ['AR', 'EN'] &&
+             data.darkMode is bool &&
+             data.autoBackup is bool &&
+             data.studyGoalMinutes is int && data.studyGoalMinutes >= 0 && data.studyGoalMinutes <= 600 &&
+             data.overallScore is number && data.overallScore >= 0 && data.overallScore <= 100 &&
+             data.completedLessonsCount is int && data.completedLessonsCount >= 0 && data.completedLessonsCount <= 10000 &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidCourse(data, userId) {
+      return data.userId == userId &&
+             data.title is string && data.title.size() >= 2 && data.title.size() <= 120 &&
+             data.instructor is string && data.instructor.size() >= 2 && data.instructor.size() <= 80 &&
+             data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 600)) &&
+             data.priceSar is int && data.priceSar >= 0 && data.priceSar <= 100000 &&
+             data.enrolled is bool &&
+             data.progressPercent is int && data.progressPercent >= 0 && data.progressPercent <= 100 &&
+             data.completedLessons is int && data.completedLessons >= 0 && data.completedLessons <= 500 &&
+             data.totalLessons is int && data.totalLessons >= 1 && data.totalLessons <= 500 &&
+             data.rating is number && data.rating >= 0 && data.rating <= 5 &&
+             (!('evaluationNote' in data) || (data.evaluationNote is string && data.evaluationNote.size() <= 400)) &&
+             data.paymentStatus in ['FREE', 'UNPAID', 'PAID'] &&
+             (!('paymentMethod' in data) || (data.paymentMethod is string && data.paymentMethod.size() <= 60)) &&
+             (!('imageKey' in data) || (data.imageKey is string && data.imageKey.size() <= 40)) &&
+             (!('externalPlatformUrl' in data) || (data.externalPlatformUrl is string && data.externalPlatformUrl.size() <= 300)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidStudentRecord(data, userId) {
+      return data.userId == userId &&
+             data.studentName is string && data.studentName.size() >= 2 && data.studentName.size() <= 80 &&
+             data.courseTitle is string && data.courseTitle.size() >= 2 && data.courseTitle.size() <= 120 &&
+             data.progressPercent is int && data.progressPercent >= 0 && data.progressPercent <= 100 &&
+             data.quizScore is int && data.quizScore >= 0 && data.quizScore <= 100 &&
+             data.attendanceRate is int && data.attendanceRate >= 0 && data.attendanceRate <= 100 &&
+             data.status in ['EXCELLENT', 'ON_TRACK', 'NEEDS_SUPPORT'] &&
+             (!('parentContactNote' in data) || (data.parentContactNote is string && data.parentContactNote.size() <= 300)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidLessonPlan(data, userId) {
+      return data.userId == userId &&
+             data.title is string && data.title.size() >= 2 && data.title.size() <= 120 &&
+             data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 80 &&
+             data.gradeLevel is string && data.gradeLevel.size() >= 1 && data.gradeLevel.size() <= 60 &&
+             data.objectives is string && data.objectives.size() >= 1 && data.objectives.size() <= 1200 &&
+             (!('activities' in data) || (data.activities is string && data.activities.size() <= 1500)) &&
+             (!('assessmentMethod' in data) || (data.assessmentMethod is string && data.assessmentMethod.size() <= 600)) &&
+             data.aiGenerated is bool &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidSmartNotification(data, userId) {
+      return data.userId == userId &&
+             data.title is string && data.title.size() >= 2 && data.title.size() <= 120 &&
+             data.body is string && data.body.size() >= 1 && data.body.size() <= 500 &&
+             data.category in ['ASSIGNMENT', 'COURSE_UPDATE', 'PARENT_SCHOOL', 'SMART_ALERT'] &&
+             data.priority in ['HIGH', 'NORMAL'] &&
+             data.read is bool &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidPaymentTransaction(data, userId) {
+      return data.userId == userId &&
+             data.courseId is string && data.courseId.size() >= 1 && data.courseId.size() <= 128 &&
+             data.courseTitle is string && data.courseTitle.size() >= 2 && data.courseTitle.size() <= 120 &&
+             data.amountSar is int && data.amountSar >= 0 && data.amountSar <= 100000 &&
+             data.gateway in ['MADA', 'VISA_MASTERCARD', 'APPLE_GOOGLE_PAY', 'WALLET'] &&
+             data.maskedCard is string && data.maskedCard.size() >= 4 && data.maskedCard.size() <= 30 &&
+             data.status in ['COMPLETED', 'PENDING'] &&
+             data.transactionRef is string && data.transactionRef.size() >= 4 && data.transactionRef.size() <= 64 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidCloudBackupSnapshot(data, userId) {
+      return data.userId == userId &&
+             data.summary is string && data.summary.size() >= 2 && data.summary.size() <= 200 &&
+             data.coursesCount is int && data.coursesCount >= 0 && data.coursesCount <= 10000 &&
+             data.recordsCount is int && data.recordsCount >= 0 && data.recordsCount <= 10000 &&
+             data.plansCount is int && data.plansCount >= 0 && data.plansCount <= 10000 &&
+             data.encryptedDigest is string && data.encryptedDigest.size() >= 8 && data.encryptedDigest.size() <= 256 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidAcademyMessage(data) {
+      return data.senderId == request.auth.uid &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 80 &&
+             data.senderRole in ['STUDENT', 'TEACHER'] &&
+             data.channelId is string && data.channelId.size() >= 1 && data.channelId.size() <= 64 &&
+             data.channelName is string && data.channelName.size() >= 1 && data.channelName.size() <= 80 &&
+             data.body is string && data.body.size() >= 1 && data.body.size() <= 1500 &&
+             (!('encryptedPayload' in data) || (data.encryptedPayload is string && data.encryptedPayload.size() <= 2500)) &&
+             data.encrypted is bool &&
+             data.publicRoom == true &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    // 1. User Profiles (Owner-only PII isolation)
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().keys().hasAll([
+                         'userId', 'displayName', 'role', 'preferredLanguage',
+                         'darkMode', 'autoBackup', 'studyGoalMinutes',
+                         'overallScore', 'completedLessonsCount', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'userId', 'displayName', 'role', 'track', 'preferredLanguage',
+                         'darkMode', 'autoBackup', 'studyGoalMinutes',
+                         'overallScore', 'completedLessonsCount', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidUserProfile(incoming(), userId);
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'role', 'track', 'preferredLanguage',
+                         'darkMode', 'autoBackup', 'studyGoalMinutes',
+                         'overallScore', 'completedLessonsCount', 'updatedAt'
+                       ]);
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // 2. Courses Subcollection
+      match /courses/{courseId} {
+        allow get: if isOwner(userId) && isValidId(courseId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(courseId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'title', 'instructor', 'category', 'priceSar',
+                           'enrolled', 'progressPercent', 'completedLessons',
+                           'totalLessons', 'rating', 'paymentStatus', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'title', 'instructor', 'category', 'description',
+                           'priceSar', 'enrolled', 'progressPercent', 'completedLessons',
+                           'totalLessons', 'rating', 'evaluationNote', 'paymentStatus',
+                           'paymentMethod', 'imageKey', 'externalPlatformUrl', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidCourse(incoming(), userId);
+        allow update: if isOwner(userId) &&
+                         isValidId(courseId) &&
+                         isValidCourse(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'title', 'instructor', 'category', 'description', 'priceSar',
+                           'enrolled', 'progressPercent', 'completedLessons', 'totalLessons',
+                           'rating', 'evaluationNote', 'paymentStatus', 'paymentMethod',
+                           'imageKey', 'externalPlatformUrl', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(courseId);
+      }
+
+      // 3. Student Records Subcollection
+      match /student_records/{recordId} {
+        allow get: if isOwner(userId) && isValidId(recordId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(recordId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'studentName', 'courseTitle', 'progressPercent',
+                           'quizScore', 'attendanceRate', 'status', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'studentName', 'courseTitle', 'progressPercent',
+                           'quizScore', 'attendanceRate', 'status', 'parentContactNote',
+                           'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidStudentRecord(incoming(), userId);
+        allow update: if isOwner(userId) &&
+                         isValidId(recordId) &&
+                         isValidStudentRecord(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'studentName', 'courseTitle', 'progressPercent', 'quizScore',
+                           'attendanceRate', 'status', 'parentContactNote', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(recordId);
+      }
+
+      // 4. Lesson Plans Subcollection
+      match /lesson_plans/{planId} {
+        allow get: if isOwner(userId) && isValidId(planId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(planId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'title', 'subject', 'gradeLevel',
+                           'objectives', 'aiGenerated', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'title', 'subject', 'gradeLevel', 'objectives',
+                           'activities', 'assessmentMethod', 'aiGenerated', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidLessonPlan(incoming(), userId);
+        allow update: if isOwner(userId) &&
+                         isValidId(planId) &&
+                         isValidLessonPlan(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'title', 'subject', 'gradeLevel', 'objectives',
+                           'activities', 'assessmentMethod', 'aiGenerated', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(planId);
+      }
+
+      // 5. Smart Notifications Subcollection
+      match /notifications/{notificationId} {
+        allow get: if isOwner(userId) && isValidId(notificationId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(notificationId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'title', 'body', 'category',
+                           'priority', 'read', 'createdAt', 'updatedAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'title', 'body', 'category',
+                           'priority', 'read', 'createdAt', 'updatedAt'
+                         ]) &&
+                         isValidSmartNotification(incoming(), userId);
+        allow update: if isOwner(userId) &&
+                         isValidId(notificationId) &&
+                         isValidSmartNotification(incoming(), userId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly([
+                           'title', 'body', 'category', 'priority', 'read', 'updatedAt'
+                         ]);
+        allow delete: if isOwner(userId) && isValidId(notificationId);
+      }
+
+      // 6. Payment Transactions Subcollection (immutable receipts)
+      match /payments/{paymentId} {
+        allow get: if isOwner(userId) && isValidId(paymentId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(paymentId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'courseId', 'courseTitle', 'amountSar',
+                           'gateway', 'maskedCard', 'status', 'transactionRef', 'createdAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'courseId', 'courseTitle', 'amountSar',
+                           'gateway', 'maskedCard', 'status', 'transactionRef', 'createdAt'
+                         ]) &&
+                         isValidPaymentTransaction(incoming(), userId);
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(paymentId);
+      }
+
+      // 7. Cloud Backup Snapshots Subcollection
+      match /backups/{backupId} {
+        allow get: if isOwner(userId) && isValidId(backupId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(backupId) &&
+                         incoming().keys().hasAll([
+                           'userId', 'summary', 'coursesCount',
+                           'recordsCount', 'plansCount', 'encryptedDigest', 'createdAt'
+                         ]) &&
+                         incoming().keys().hasOnly([
+                           'userId', 'summary', 'coursesCount',
+                           'recordsCount', 'plansCount', 'encryptedDigest', 'createdAt'
+                         ]) &&
+                         isValidCloudBackupSnapshot(incoming(), userId);
+        allow update: if false;
+        allow delete: if isOwner(userId) && isValidId(backupId);
+      }
+    }
+
+    // 8. Shared Real-Time Collaborative Academy Chat
+    match /academy_messages/{messageId} {
+      allow get: if isSignedIn() && isValidId(messageId) && existing().publicRoom == true;
+      allow list: if isSignedIn() && resource.data.publicRoom == true;
+      allow create: if isSignedIn() &&
+                       isValidId(messageId) &&
+                       incoming().keys().hasAll([
+                         'senderId', 'senderName', 'senderRole', 'channelId',
+                         'channelName', 'body', 'encrypted', 'publicRoom', 'createdAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'senderId', 'senderName', 'senderRole', 'channelId',
+                         'channelName', 'body', 'encryptedPayload', 'encrypted',
+                         'publicRoom', 'createdAt'
+                       ]) &&
+                       isValidAcademyMessage(incoming());
+      allow update: if isSignedIn() &&
+                       isValidId(messageId) &&
+                       existing().senderId == request.auth.uid &&
+                       isValidAcademyMessage(incoming()) &&
+                       incoming().senderId == existing().senderId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['body', 'encryptedPayload', 'encrypted']);
+      allow delete: if isSignedIn() && isValidId(messageId) && existing().senderId == request.auth.uid;
+    }
+  }
+}

@@ -1,0 +1,268 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile, role preference, theme/language settings, and learning metrics.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the user." },
+        "displayName": { "type": "string", "description": "Display name." },
+        "role": { "type": "string", "enum": ["STUDENT", "TEACHER"], "description": "User workspace role." },
+        "track": { "type": "string", "description": "Academic or teaching specialty track." },
+        "preferredLanguage": { "type": "string", "enum": ["AR", "EN"], "description": "UI language." },
+        "darkMode": { "type": "boolean", "description": "Night browsing mode preference." },
+        "autoBackup": { "type": "boolean", "description": "Automatic cloud backup toggle." },
+        "studyGoalMinutes": { "type": "integer", "description": "Daily study goal in minutes." },
+        "overallScore": { "type": "number", "description": "Overall academic performance percentage." },
+        "completedLessonsCount": { "type": "integer", "description": "Total completed lessons." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp." }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "role",
+        "preferredLanguage",
+        "darkMode",
+        "autoBackup",
+        "studyGoalMinutes",
+        "overallScore",
+        "completedLessonsCount",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Course": {
+      "title": "Course",
+      "description": "Training course managed or enrolled by the user with progress, payment status, and curriculum rating.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "instructor": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "priceSar": { "type": "integer" },
+        "enrolled": { "type": "boolean" },
+        "progressPercent": { "type": "integer" },
+        "completedLessons": { "type": "integer" },
+        "totalLessons": { "type": "integer" },
+        "rating": { "type": "number" },
+        "evaluationNote": { "type": "string" },
+        "paymentStatus": { "type": "string", "enum": ["FREE", "UNPAID", "PAID"] },
+        "paymentMethod": { "type": "string" },
+        "imageKey": { "type": "string" },
+        "externalPlatformUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "title",
+        "instructor",
+        "category",
+        "priceSar",
+        "enrolled",
+        "progressPercent",
+        "completedLessons",
+        "totalLessons",
+        "rating",
+        "paymentStatus",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "StudentRecord": {
+      "title": "StudentRecord",
+      "description": "Real-time student progress, quiz score, and attendance record for the teacher dashboard.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "courseTitle": { "type": "string" },
+        "progressPercent": { "type": "integer" },
+        "quizScore": { "type": "integer" },
+        "attendanceRate": { "type": "integer" },
+        "status": { "type": "string", "enum": ["EXCELLENT", "ON_TRACK", "NEEDS_SUPPORT"] },
+        "parentContactNote": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "studentName",
+        "courseTitle",
+        "progressPercent",
+        "quizScore",
+        "attendanceRate",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "LessonPlan": {
+      "title": "LessonPlan",
+      "description": "Structured curriculum preparation and lesson plan created manually or with Gemini AI.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "gradeLevel": { "type": "string" },
+        "objectives": { "type": "string" },
+        "activities": { "type": "string" },
+        "assessmentMethod": { "type": "string" },
+        "aiGenerated": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "title",
+        "subject",
+        "gradeLevel",
+        "objectives",
+        "aiGenerated",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SmartNotification": {
+      "title": "SmartNotification",
+      "description": "Smart alerts, task reminders, course updates, and parent-school communications.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string", "enum": ["ASSIGNMENT", "COURSE_UPDATE", "PARENT_SCHOOL", "SMART_ALERT"] },
+        "priority": { "type": "string", "enum": ["HIGH", "NORMAL"] },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "title",
+        "body",
+        "category",
+        "priority",
+        "read",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PaymentTransaction": {
+      "title": "PaymentTransaction",
+      "description": "Electronic payment gateway transaction receipt for course enrollment.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "courseId": { "type": "string" },
+        "courseTitle": { "type": "string" },
+        "amountSar": { "type": "integer" },
+        "gateway": { "type": "string", "enum": ["MADA", "VISA_MASTERCARD", "APPLE_GOOGLE_PAY", "WALLET"] },
+        "maskedCard": { "type": "string" },
+        "status": { "type": "string", "enum": ["COMPLETED", "PENDING"] },
+        "transactionRef": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "courseId",
+        "courseTitle",
+        "amountSar",
+        "gateway",
+        "maskedCard",
+        "status",
+        "transactionRef",
+        "createdAt"
+      ]
+    },
+    "CloudBackupSnapshot": {
+      "title": "CloudBackupSnapshot",
+      "description": "Encrypted cloud backup snapshot metadata for user data recovery.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "summary": { "type": "string" },
+        "coursesCount": { "type": "integer" },
+        "recordsCount": { "type": "integer" },
+        "plansCount": { "type": "integer" },
+        "encryptedDigest": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "userId",
+        "summary",
+        "coursesCount",
+        "recordsCount",
+        "plansCount",
+        "encryptedDigest",
+        "createdAt"
+      ]
+    },
+    "AcademyMessage": {
+      "title": "AcademyMessage",
+      "description": "Real-time collaborative academy chat message with optional AES-256-GCM encryption.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string", "enum": ["STUDENT", "TEACHER"] },
+        "channelId": { "type": "string" },
+        "channelName": { "type": "string" },
+        "body": { "type": "string" },
+        "encryptedPayload": { "type": "string" },
+        "encrypted": { "type": "boolean" },
+        "publicRoom": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "senderId",
+        "senderName",
+        "senderRole",
+        "channelId",
+        "channelName",
+        "body",
+        "encrypted",
+        "publicRoom",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Authenticated user profile and app preferences."
+    },
+    "/users/{userId}/courses/{courseId}": {
+      "schema": { "$ref": "#/entities/Course" },
+      "description": "User courses, enrollment state, progress, and curriculum evaluations."
+    },
+    "/users/{userId}/student_records/{recordId}": {
+      "schema": { "$ref": "#/entities/StudentRecord" },
+      "description": "Real-time student academic progress tracking records."
+    },
+    "/users/{userId}/lesson_plans/{planId}": {
+      "schema": { "$ref": "#/entities/LessonPlan" },
+      "description": "Teacher lesson preparation and curriculum plans."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/SmartNotification" },
+      "description": "Smart alerts and parent-school communications."
+    },
+    "/users/{userId}/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/PaymentTransaction" },
+      "description": "Electronic payment gateway transaction receipts."
+    },
+    "/users/{userId}/backups/{backupId}": {
+      "schema": { "$ref": "#/entities/CloudBackupSnapshot" },
+      "description": "Encrypted automatic cloud backup snapshots."
+    },
+    "/academy_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/AcademyMessage" },
+      "description": "Shared real-time academy peer and teacher-student chat messages."
+    }
+  }
+}

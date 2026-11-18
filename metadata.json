@@ -1,0 +1,6 @@
+{
+  "name": "EduTech Mindset",
+  "description": "منصة EduTech Mindset للتعليم والتكنولوجيا بإدارة الأستاذ باسل الفقعاوي: إدارة الدورات التدريبية، تتبع تقدم الطلاب، التحليلات الذكية، المحادثة الفورية، والدعم دون اتصال.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
