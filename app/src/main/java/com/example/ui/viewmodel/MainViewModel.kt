@@ -1,5 +1,6 @@
 package com.example.ui.viewmodel
 
+import android.graphics.Bitmap
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,6 +8,10 @@ import com.example.core.ConnectivityObserver
 import com.example.core.LocalAppPreferences
 import com.example.core.PreferencesStore
 import com.example.data.model.AcademyMessage
+import com.example.data.model.AiFlashcardsUiState
+import com.example.data.model.AiImageUiState
+import com.example.data.model.AiQuizUiState
+import com.example.data.model.AiTutorPersona
 import com.example.data.model.AiUiState
 import com.example.data.model.CloudBackupSnapshot
 import com.example.data.model.Course
@@ -114,6 +119,35 @@ class MainViewModel(
 
     private val _analyticsReportState = MutableStateFlow<AiUiState>(AiUiState.Idle)
     val analyticsReportState: StateFlow<AiUiState> = _analyticsReportState.asStateFlow()
+
+    private val _selectedTutorPersona = MutableStateFlow(AiTutorPersona.SMART_TUTOR)
+    val selectedTutorPersona: StateFlow<AiTutorPersona> = _selectedTutorPersona.asStateFlow()
+
+    private val _tutorHistory = MutableStateFlow(
+        listOf(
+            SupportChatEntry(
+                id = "tutor_welcome",
+                isUser = false,
+                text = "أهلاً بك في استوديو المعلم الذكي! اختر دورة أو اسألني أي مفهوم علمي أو برمجي."
+            )
+        )
+    )
+    val tutorHistory: StateFlow<List<SupportChatEntry>> = _tutorHistory.asStateFlow()
+
+    private val _tutorAiState = MutableStateFlow<AiUiState>(AiUiState.Idle)
+    val tutorAiState: StateFlow<AiUiState> = _tutorAiState.asStateFlow()
+
+    private val _visionAiState = MutableStateFlow<AiUiState>(AiUiState.Idle)
+    val visionAiState: StateFlow<AiUiState> = _visionAiState.asStateFlow()
+
+    private val _quizAiState = MutableStateFlow<AiQuizUiState>(AiQuizUiState.Idle)
+    val quizAiState: StateFlow<AiQuizUiState> = _quizAiState.asStateFlow()
+
+    private val _flashcardsAiState = MutableStateFlow<AiFlashcardsUiState>(AiFlashcardsUiState.Idle)
+    val flashcardsAiState: StateFlow<AiFlashcardsUiState> = _flashcardsAiState.asStateFlow()
+
+    private val _visualAidState = MutableStateFlow<AiImageUiState>(AiImageUiState.Idle)
+    val visualAidState: StateFlow<AiImageUiState> = _visualAidState.asStateFlow()
 
     private val _events = MutableSharedFlow<String>(extraBufferCapacity = 8)
     val events: SharedFlow<String> = _events.asSharedFlow()
@@ -473,6 +507,176 @@ class MainViewModel(
                 Log.e(TAG, "Support AI failed", e)
                 _supportAiState.value = AiUiState.Error(e.localizedMessage ?: "تعذر الاتصال بالدعم الذكي.")
             }
+        }
+    }
+
+    fun selectTutorPersona(persona: AiTutorPersona) {
+        _selectedTutorPersona.value = persona
+    }
+
+    fun clearTutorChat() {
+        val isAr = localPreferences.value.language != "EN"
+        _tutorHistory.value = listOf(
+            SupportChatEntry(
+                id = UUID.randomUUID().toString(),
+                isUser = false,
+                text = if (isAr) {
+                    "بدأت جلسة تعلم جديدة. ما الموضوع الذي تود استكشافه اليوم؟"
+                } else {
+                    "Started a fresh study session. What topic would you like to explore today?"
+                }
+            )
+        )
+        _tutorAiState.value = AiUiState.Idle
+    }
+
+    fun askAiTutor(question: String, courseContext: String) {
+        val clean = question.trim()
+        if (clean.isEmpty()) return
+        val historySnapshot = _tutorHistory.value
+        _tutorHistory.value = historySnapshot + SupportChatEntry(
+            id = UUID.randomUUID().toString(),
+            isUser = true,
+            text = clean
+        )
+        viewModelScope.launch {
+            _tutorAiState.value = AiUiState.Loading
+            try {
+                var lastText = ""
+                aiRepository.streamTutorReply(
+                    persona = _selectedTutorPersona.value,
+                    historyEntries = historySnapshot,
+                    userQuestion = clean,
+                    courseContext = courseContext
+                ).collect { partial ->
+                    lastText = partial
+                    _tutorAiState.value = AiUiState.Streaming(partial)
+                }
+                _tutorHistory.value = _tutorHistory.value + SupportChatEntry(
+                    id = UUID.randomUUID().toString(),
+                    isUser = false,
+                    text = lastText
+                )
+                _tutorAiState.value = AiUiState.Success(lastText)
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "AI Tutor timed out", e)
+                _tutorAiState.value = AiUiState.Error("انتهت مهلة المعلم الذكي (60 ثانية). حاول مرة أخرى.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "AI Tutor failed", e)
+                _tutorAiState.value = AiUiState.Error(e.localizedMessage ?: "تعذر الحصول على إجابة من المعلم الذكي.")
+            }
+        }
+    }
+
+    fun analyzeEducationalImage(bitmap: Bitmap, question: String) {
+        viewModelScope.launch {
+            _visionAiState.value = AiUiState.Loading
+            val isAr = localPreferences.value.language != "EN"
+            try {
+                var lastText = ""
+                aiRepository.streamVisionHomeworkHelp(bitmap, question, isAr).collect { partial ->
+                    lastText = partial
+                    _visionAiState.value = AiUiState.Streaming(partial)
+                }
+                _visionAiState.value = AiUiState.Success(lastText)
+            } catch (e: TimeoutCancellationException) {
+                Log.e(TAG, "Vision analysis timed out", e)
+                _visionAiState.value = AiUiState.Error("انتهت مهلة تحليل الصورة (60 ثانية).")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Vision analysis failed", e)
+                _visionAiState.value = AiUiState.Error(e.localizedMessage ?: "فشل تحليل الصورة التعليمية.")
+            }
+        }
+    }
+
+    fun generateAiQuiz(topic: String, gradeLevel: String, difficulty: String) {
+        val cleanTopic = topic.trim()
+        if (cleanTopic.length < 2) return
+        viewModelScope.launch {
+            _quizAiState.value = AiQuizUiState.Loading
+            val isAr = localPreferences.value.language != "EN"
+            aiRepository.generateInteractiveQuiz(
+                topic = cleanTopic,
+                gradeLevel = gradeLevel.ifBlank { if (isAr) "عام" else "General" },
+                difficulty = difficulty,
+                isArabic = isAr
+            ).onSuccess { items ->
+                _quizAiState.value = AiQuizUiState.Success(cleanTopic, items)
+            }.onFailure { err ->
+                val msg = if (err is TimeoutCancellationException) {
+                    if (isAr) "انتهت مهلة توليد الاختبار (60 ثانية)." else "Quiz generation timed out after 60s."
+                } else {
+                    err.localizedMessage ?: "Failed to generate quiz"
+                }
+                _quizAiState.value = AiQuizUiState.Error(msg)
+            }
+        }
+    }
+
+    fun recordAiQuizAchievement(topic: String, scorePercent: Int) {
+        viewModelScope.launch {
+            val isAr = localPreferences.value.language != "EN"
+            val title = if (isAr) "نتيجة اختبار الذكاء التربوي: $topic" else "AI Quiz Completed: $topic"
+            val body = if (isAr) {
+                "أتممت الاختبار التفاعلي الذكي بنجاح بنسبة $scorePercent%."
+            } else {
+                "Completed interactive AI quiz with $scorePercent% score."
+            }
+            repository.addNotification(
+                userId = currentUserId,
+                title = title,
+                body = body,
+                category = NotificationCategory.ASSIGNMENT,
+                priority = if (scorePercent >= 80) "HIGH" else "NORMAL"
+            ).onSuccess {
+                _events.tryEmit(if (isAr) "تم حفظ نتيجة الاختبار في التنبيهات" else "Quiz result saved to alerts")
+            }
+        }
+    }
+
+    fun generateAiFlashcards(sourceText: String) {
+        val clean = sourceText.trim()
+        if (clean.length < 5) return
+        viewModelScope.launch {
+            _flashcardsAiState.value = AiFlashcardsUiState.Loading
+            val isAr = localPreferences.value.language != "EN"
+            aiRepository.generateSummaryAndFlashcards(clean, isAr)
+                .onSuccess { bundle ->
+                    _flashcardsAiState.value = AiFlashcardsUiState.Success(bundle.summary, bundle.cards)
+                }
+                .onFailure { err ->
+                    val msg = if (err is TimeoutCancellationException) {
+                        if (isAr) "انتهت مهلة التلخيص (60 ثانية)." else "Summary generation timed out."
+                    } else {
+                        err.localizedMessage ?: "Failed to build flashcards"
+                    }
+                    _flashcardsAiState.value = AiFlashcardsUiState.Error(msg)
+                }
+        }
+    }
+
+    fun generateEducationalVisual(prompt: String, referenceBitmap: Bitmap? = null) {
+        val clean = prompt.trim()
+        if (clean.length < 3) return
+        viewModelScope.launch {
+            _visualAidState.value = AiImageUiState.Loading
+            val isAr = localPreferences.value.language != "EN"
+            aiRepository.generateEducationalVisual(clean, referenceBitmap)
+                .onSuccess { bitmap ->
+                    _visualAidState.value = AiImageUiState.Success(bitmap, clean)
+                }
+                .onFailure { err ->
+                    val msg = if (err is TimeoutCancellationException) {
+                        if (isAr) "انتهت مهلة توليد الوسيلة البصرية (60 ثانية)." else "Visual generation timed out after 60s."
+                    } else {
+                        err.localizedMessage ?: "Failed to generate visual"
+                    }
+                    _visualAidState.value = AiImageUiState.Error(msg)
+                }
         }
     }
 

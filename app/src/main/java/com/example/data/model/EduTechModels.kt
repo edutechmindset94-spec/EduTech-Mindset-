@@ -230,3 +230,78 @@ data class QuizQuestion(
     val optionsEn: List<String>,
     val correctIndex: Int,
 )
+
+enum class AiTutorPersona(
+    val labelAr: String,
+    val labelEn: String,
+    val modelName: String,
+    val roleInstruction: String,
+) {
+    SMART_TUTOR(
+        labelAr = "المعلم الذكي",
+        labelEn = "Smart Tutor",
+        modelName = "gemini-3.8-flash",
+        roleInstruction = "أنت المعلم الذكي في منصة EduTech Mindset (إدارة الأستاذ باسل الفقعاوي). اشرح المفاهيم بوضوح وتدرج تربوي مع أمثلة تطبيقية وتشجيع مستمر للطالب."
+    ),
+    SOCRATIC_COACH(
+        labelAr = "حوار سقراطي",
+        labelEn = "Socratic Coach",
+        modelName = "gemini-3.8-flash",
+        roleInstruction = "أنت موجه سقراطي تربوي في منصة EduTech Mindset. لا تعطِ الإجابة النهائية فوراً؛ وجّه المتعلم بأسئلة استكشافية ذكية وتلميحات خطوة بخطوة ليصل للحل بنفسه."
+    ),
+    STEM_SOLVER(
+        labelAr = "حل مسائل STEM",
+        labelEn = "STEM Solver",
+        modelName = "gemini-3.8-flash",
+        roleInstruction = "أنت خبير الرياضيات والعلوم والبرمجة في EduTech Mindset. حلّ المسائل بخطوات رياضية ومنطقية مرقمة واضحة وتحقق من النتيجة النهائية."
+    ),
+    QUICK_EXPLAINER(
+        labelAr = "شرح سريع",
+        labelEn = "Quick Explainer",
+        modelName = "gemini-3.5-flash-lite",
+        roleInstruction = "أنت مساعد مراجعة سريعة في EduTech Mindset. قدّم إجابات مركزة ومختصرة جداً على شكل نقاط واضحة مناسبة للمراجعة قبل الاختبار."
+    ),
+}
+
+enum class AiToolTab {
+    TUTOR,
+    VISION,
+    QUIZ,
+    FLASHCARDS,
+    VISUALS,
+}
+
+data class GeneratedQuizItem(
+    val question: String,
+    val options: List<String>,
+    val correctIndex: Int,
+    val explanation: String,
+)
+
+data class GeneratedFlashcard(
+    val front: String,
+    val back: String,
+    val memoryTip: String,
+)
+
+sealed interface AiQuizUiState {
+    data object Idle : AiQuizUiState
+    data object Loading : AiQuizUiState
+    data class Success(val topic: String, val questions: List<GeneratedQuizItem>) : AiQuizUiState
+    data class Error(val message: String) : AiQuizUiState
+}
+
+sealed interface AiFlashcardsUiState {
+    data object Idle : AiFlashcardsUiState
+    data object Loading : AiFlashcardsUiState
+    data class Success(val summary: String, val cards: List<GeneratedFlashcard>) : AiFlashcardsUiState
+    data class Error(val message: String) : AiFlashcardsUiState
+}
+
+sealed interface AiImageUiState {
+    data object Idle : AiImageUiState
+    data object Loading : AiImageUiState
+    data class Success(val bitmap: android.graphics.Bitmap, val prompt: String) : AiImageUiState
+    data class Error(val message: String) : AiImageUiState
+}
+

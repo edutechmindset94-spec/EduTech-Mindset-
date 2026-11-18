@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -50,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.core.LocalAppStrings
+import com.example.data.model.AiToolTab
+import com.example.data.model.UiState
 import com.example.ui.auth.signOut
 import com.example.ui.theme.AmberWarning
 import com.example.ui.viewmodel.MainViewModel
@@ -73,6 +74,7 @@ fun EduTechAppShell(
     val credentialManager = remember(context) { CredentialManager.create(context) }
 
     var activeTab by rememberSaveable { mutableStateOf(AppTab.DASHBOARD) }
+    var activeAiToolTab by rememberSaveable { mutableStateOf<AiToolTab?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     val isOnline by viewModel.isOnline.collectAsStateWithLifecycle()
@@ -91,13 +93,21 @@ fun EduTechAppShell(
     val lessonPlanAiState by viewModel.lessonPlanAiState.collectAsStateWithLifecycle()
     val analyticsReportState by viewModel.analyticsReportState.collectAsStateWithLifecycle()
 
+    val selectedTutorPersona by viewModel.selectedTutorPersona.collectAsStateWithLifecycle()
+    val tutorHistory by viewModel.tutorHistory.collectAsStateWithLifecycle()
+    val tutorAiState by viewModel.tutorAiState.collectAsStateWithLifecycle()
+    val visionAiState by viewModel.visionAiState.collectAsStateWithLifecycle()
+    val quizAiState by viewModel.quizAiState.collectAsStateWithLifecycle()
+    val flashcardsAiState by viewModel.flashcardsAiState.collectAsStateWithLifecycle()
+    val visualAidState by viewModel.visualAidState.collectAsStateWithLifecycle()
+
     LaunchedEffect(viewModel) {
         viewModel.events.collect { message ->
             snackbarHostState.showSnackbar(message)
         }
     }
 
-    BackHandler(enabled = activeTab != AppTab.DASHBOARD) {
+    BackHandler(enabled = activeAiToolTab == null && activeTab != AppTab.DASHBOARD) {
         activeTab = AppTab.DASHBOARD
     }
 
@@ -121,8 +131,11 @@ fun EduTechAppShell(
                         AppTab.entries.forEach { tab ->
                             val label = labelFor(tab)
                             NavigationBarItem(
-                                selected = activeTab == tab,
-                                onClick = { activeTab = tab },
+                                selected = activeAiToolTab == null && activeTab == tab,
+                                onClick = {
+                                    activeAiToolTab = null
+                                    activeTab = tab
+                                },
                                 icon = { Icon(tab.icon, contentDescription = label) },
                                 label = { Text(label, maxLines = 1) },
                                 modifier = Modifier.testTag("nav_${tab.route}")
@@ -142,8 +155,11 @@ fun EduTechAppShell(
                         AppTab.entries.forEach { tab ->
                             val label = labelFor(tab)
                             NavigationRailItem(
-                                selected = activeTab == tab,
-                                onClick = { activeTab = tab },
+                                selected = activeAiToolTab == null && activeTab == tab,
+                                onClick = {
+                                    activeAiToolTab = null
+                                    activeTab = tab
+                                },
                                 icon = { Icon(tab.icon, contentDescription = label) },
                                 label = { Text(label) },
                                 modifier = Modifier.testTag("rail_${tab.route}")
@@ -156,9 +172,7 @@ fun EduTechAppShell(
                     AnimatedVisibility(visible = !isOnline) {
                         Surface(
                             color = AmberWarning.copy(alpha = 0.2f),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .statusBarsPadding()
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
@@ -181,21 +195,46 @@ fun EduTechAppShell(
                     }
 
                     Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                        when (activeTab) {
-                            AppTab.DASHBOARD -> DashboardScreen(
-                                profileState = profileState,
-                                coursesState = coursesState,
-                                studentsState = studentsState,
-                                notificationsState = notificationsState,
-                                darkMode = prefs.darkMode,
-                                onToggleDarkMode = viewModel::toggleDarkMode,
-                                onSwitchRole = viewModel::switchRole,
-                                onAddStudent = viewModel::addStudentRecord,
-                                onIncrementStudent = viewModel::incrementStudentProgress,
-                                onSendNotification = viewModel::sendNotification,
-                                onMarkNotificationRead = viewModel::markNotificationRead,
-                                onNavigateToCourses = { activeTab = AppTab.COURSES }
+                        val toolTab = activeAiToolTab
+                        if (toolTab != null) {
+                            AiToolsScreen(
+                                initialTab = toolTab,
+                                courses = (coursesState as? UiState.Success)?.data.orEmpty(),
+                                selectedPersona = selectedTutorPersona,
+                                tutorHistory = tutorHistory,
+                                tutorAiState = tutorAiState,
+                                visionAiState = visionAiState,
+                                quizAiState = quizAiState,
+                                flashcardsAiState = flashcardsAiState,
+                                visualAidState = visualAidState,
+                                onSelectPersona = viewModel::selectTutorPersona,
+                                onClearTutorChat = viewModel::clearTutorChat,
+                                onAskTutor = viewModel::askAiTutor,
+                                onAnalyzeImage = viewModel::analyzeEducationalImage,
+                                onGenerateQuiz = viewModel::generateAiQuiz,
+                                onSaveQuizResult = viewModel::recordAiQuizAchievement,
+                                onGenerateFlashcards = viewModel::generateAiFlashcards,
+                                onGenerateVisual = viewModel::generateEducationalVisual,
+                                onBack = { activeAiToolTab = null }
                             )
+                        } else {
+                            when (activeTab) {
+                                AppTab.DASHBOARD -> DashboardScreen(
+                                    profileState = profileState,
+                                    coursesState = coursesState,
+                                    studentsState = studentsState,
+                                    notificationsState = notificationsState,
+                                    darkMode = prefs.darkMode,
+                                    onToggleDarkMode = viewModel::toggleDarkMode,
+                                    onSwitchRole = viewModel::switchRole,
+                                    onAddStudent = viewModel::addStudentRecord,
+                                    onIncrementStudent = viewModel::incrementStudentProgress,
+                                    onSendNotification = viewModel::sendNotification,
+                                    onMarkNotificationRead = viewModel::markNotificationRead,
+                                    onAdvanceCourseLesson = viewModel::advanceCourseLesson,
+                                    onNavigateToCourses = { activeTab = AppTab.COURSES },
+                                    onOpenAiStudio = { tab -> activeAiToolTab = tab }
+                                )
 
                             AppTab.COURSES -> CoursesScreen(
                                 coursesState = coursesState,
@@ -229,18 +268,19 @@ fun EduTechAppShell(
                                 onAskAiSupport = viewModel::askAiSupport
                             )
 
-                            AppTab.PROFILE -> ProfileScreen(
-                                profileState = profileState,
-                                paymentsState = paymentsState,
-                                backupsState = backupsState,
-                                darkMode = prefs.darkMode,
-                                language = prefs.language,
-                                autoBackup = prefs.autoBackup,
-                                onSaveProfile = viewModel::saveProfile,
-                                onSignOut = {
-                                    signOut(credentialManager = credentialManager, scope = scope)
-                                }
-                            )
+                                AppTab.PROFILE -> ProfileScreen(
+                                    profileState = profileState,
+                                    paymentsState = paymentsState,
+                                    backupsState = backupsState,
+                                    darkMode = prefs.darkMode,
+                                    language = prefs.language,
+                                    autoBackup = prefs.autoBackup,
+                                    onSaveProfile = viewModel::saveProfile,
+                                    onSignOut = {
+                                        signOut(credentialManager = credentialManager, scope = scope)
+                                    }
+                                )
+                            }
                         }
                     }
                 }

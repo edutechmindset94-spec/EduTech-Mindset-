@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -44,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
@@ -54,6 +52,7 @@ import com.example.data.model.PaymentTransaction
 import com.example.data.model.UiState
 import com.example.data.model.UserProfile
 import com.example.data.model.UserRole
+import com.example.ui.components.AcademyAsyncImage
 import com.example.ui.theme.CoralAlert
 import com.example.ui.theme.EmeraldSuccess
 
@@ -110,8 +109,8 @@ fun ProfileScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.img_educator_emblem),
+                    AcademyAsyncImage(
+                        resId = R.drawable.img_educator_emblem,
                         contentDescription = strings.brandTitle,
                         modifier = Modifier
                             .size(64.dp)

@@ -1,8 +1,15 @@
 package com.example.data.repository
 
+import android.graphics.Bitmap
 import android.util.Log
+import com.example.data.model.AiTutorPersona
+import com.example.data.model.GeneratedFlashcard
+import com.example.data.model.GeneratedQuizItem
+import com.example.data.model.SupportChatEntry
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
+import com.google.firebase.ai.type.ImagePart
+import com.google.firebase.ai.type.ResponseModality
 import com.google.firebase.ai.type.Schema
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
@@ -20,6 +27,11 @@ data class GeneratedLessonPlanDraft(
     val objectives: String,
     val activities: String,
     val assessmentMethod: String,
+)
+
+data class GeneratedFlashcardsBundle(
+    val summary: String,
+    val cards: List<GeneratedFlashcard>,
 )
 
 class AiEducationRepository {
@@ -62,6 +74,83 @@ class AiEducationRepository {
         Firebase.ai.generativeModel(modelName = "gemini-3.8-flash")
     }
 
+    private val visionModel by lazy {
+        Firebase.ai.generativeModel(
+            modelName = "gemini-3.8-flash",
+            systemInstruction = content {
+                text(
+                    "أنت محلل واجبات ومناهج تعليمية ذكي في EduTech Mindset. " +
+                        "حلل الصورة التعليمية أو المسألة أو الصفحة الدراسية واشرح الحل خطوة بخطوة بوضوح، " +
+                        "مع تلخيص المفهوم الأساسي ونصيحة للمذاكرة. أجب بنفس لغة سؤال المستخدم."
+                )
+            }
+        )
+    }
+
+    private val quizSchema = Schema.obj(
+        properties = mapOf(
+            "questions" to Schema.array(
+                items = Schema.obj(
+                    properties = mapOf(
+                        "question" to Schema.string(description = "Clear educational quiz question"),
+                        "options" to Schema.array(
+                            items = Schema.string(),
+                            description = "Exactly 4 answer options"
+                        ),
+                        "correctIndex" to Schema.integer(description = "0-based index of the correct option (0..3)"),
+                        "explanation" to Schema.string(description = "Brief educational explanation of the correct answer")
+                    )
+                ),
+                description = "List of 4 multiple-choice questions"
+            )
+        )
+    )
+
+    private val quizModel by lazy {
+        Firebase.ai.generativeModel(
+            modelName = "gemini-3.8-flash",
+            generationConfig = generationConfig {
+                responseMimeType = "application/json"
+                responseSchema = quizSchema
+            }
+        )
+    }
+
+    private val flashcardsSchema = Schema.obj(
+        properties = mapOf(
+            "summary" to Schema.string(description = "Concise structured summary of the lesson material"),
+            "cards" to Schema.array(
+                items = Schema.obj(
+                    properties = mapOf(
+                        "front" to Schema.string(description = "Question or key concept on card front"),
+                        "back" to Schema.string(description = "Clear concise answer or definition on card back"),
+                        "memoryTip" to Schema.string(description = "Short mnemonic or real-world analogy")
+                    )
+                ),
+                description = "4 to 5 study flashcards for active recall"
+            )
+        )
+    )
+
+    private val flashcardsModel by lazy {
+        Firebase.ai.generativeModel(
+            modelName = "gemini-3.5-flash-lite",
+            generationConfig = generationConfig {
+                responseMimeType = "application/json"
+                responseSchema = flashcardsSchema
+            }
+        )
+    }
+
+    private val educationalImageModel by lazy {
+        Firebase.ai.generativeModel(
+            modelName = "gemini-nano-banana-2.1",
+            generationConfig = generationConfig {
+                responseModalities = listOf(ResponseModality.IMAGE)
+            }
+        )
+    }
+
     fun streamSupportResponse(userPrompt: String, contextSummary: String): Flow<String> = flow {
         val fullPrompt = "سياق الحساب: $contextSummary\n\nسؤال المستخدم: $userPrompt"
         val accumulated = StringBuilder()
@@ -76,6 +165,191 @@ class AiEducationRepository {
         }
         if (accumulated.isBlank()) {
             throw IllegalStateException("Empty response from AI support model.")
+        }
+    }
+
+    fun streamTutorReply(
+        persona: AiTutorPersona,
+        historyEntries: List<SupportChatEntry>,
+        userQuestion: String,
+        courseContext: String,
+    ): Flow<String> = flow {
+        val tutorModel = Firebase.ai.generativeModel(
+            modelName = persona.modelName,
+            systemInstruction = content {
+                text(
+                    "${persona.roleInstruction}\n" +
+                        if (courseContext.isNotBlank()) "سياق الدورة الحالية: $courseContext" else ""
+                )
+            }
+        )
+        val chatHistory = historyEntries.takeLast(10).map { entry ->
+            content(if (entry.isUser) "user" else "model") {
+                text(entry.text)
+            }
+        }
+        val chat = tutorModel.startChat(history = chatHistory)
+        val accumulated = StringBuilder()
+        withTimeout(60_000L) {
+            chat.sendMessageStream(userQuestion).collect { chunk ->
+                val text = chunk.text.orEmpty()
+                if (text.isNotEmpty()) {
+                    accumulated.append(text)
+                    emit(accumulated.toString())
+                }
+            }
+        }
+        if (accumulated.isBlank()) {
+            throw IllegalStateException("Empty response from AI tutor.")
+        }
+    }
+
+    fun streamVisionHomeworkHelp(
+        bitmap: Bitmap,
+        question: String,
+        isArabic: Boolean,
+    ): Flow<String> = flow {
+        val prompt = question.trim().ifBlank {
+            if (isArabic) {
+                "حلل هذه الصورة التعليمية أو ورقة العمل واشرح المفاهيم والحل خطوة بخطوة."
+            } else {
+                "Analyze this educational image or worksheet and explain the concepts and solution step by step."
+            }
+        }
+        val accumulated = StringBuilder()
+        withTimeout(60_000L) {
+            visionModel.generateContentStream(
+                content {
+                    image(bitmap)
+                    text(prompt)
+                }
+            ).collect { chunk ->
+                val text = chunk.text.orEmpty()
+                if (text.isNotEmpty()) {
+                    accumulated.append(text)
+                    emit(accumulated.toString())
+                }
+            }
+        }
+        if (accumulated.isBlank()) {
+            throw IllegalStateException("Vision model returned empty analysis.")
+        }
+    }
+
+    suspend fun generateInteractiveQuiz(
+        topic: String,
+        gradeLevel: String,
+        difficulty: String,
+        isArabic: Boolean,
+    ): Result<List<GeneratedQuizItem>> {
+        return try {
+            val langInstruction = if (isArabic) "باللغة العربية الفصحى" else "in clear English"
+            val prompt = "أنشئ اختباراً تفاعلياً من 4 أسئلة اختيار من متعدد $langInstruction " +
+                "حول الموضوع: '$topic'، للمرحلة/المستوى: '$gradeLevel'، بدرجة صعوبة: '$difficulty'. " +
+                "تأكد أن لكل سؤال 4 خيارات بالضبط ومؤشر الإجابة الصحيحة من 0 إلى 3 مع شرح تعليمي مختصر."
+            val response = withTimeout(60_000L) {
+                quizModel.generateContent(prompt)
+            }
+            val rawJson = response.text ?: throw IllegalStateException("Model returned empty quiz.")
+            val root = JSONObject(rawJson)
+            val arr = root.getJSONArray("questions")
+            val items = (0 until arr.length()).map { i ->
+                val qObj = arr.getJSONObject(i)
+                val optsArr = qObj.getJSONArray("options")
+                val opts = (0 until optsArr.length()).map { j -> optsArr.getString(j) }
+                val safeOpts = if (opts.isEmpty()) listOf("A", "B", "C", "D") else opts
+                GeneratedQuizItem(
+                    question = qObj.getString("question"),
+                    options = safeOpts,
+                    correctIndex = qObj.optInt("correctIndex", 0).coerceIn(0, safeOpts.lastIndex),
+                    explanation = qObj.optString("explanation", "")
+                )
+            }
+            if (items.isEmpty()) {
+                Result.failure(IllegalStateException("No quiz questions generated."))
+            } else {
+                Result.success(items)
+            }
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "Quiz generation timed out", e)
+            Result.failure(e)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Quiz generation failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun generateSummaryAndFlashcards(
+        sourceText: String,
+        isArabic: Boolean,
+    ): Result<GeneratedFlashcardsBundle> {
+        return try {
+            val langInstruction = if (isArabic) "باللغة العربية الواضحة" else "in clear English"
+            val prompt = "لخّص المحتوى التعليمي التالي وأنشئ 4 بطاقات استذكار تفاعلية $langInstruction:\n\n$sourceText"
+            val response = withTimeout(60_000L) {
+                flashcardsModel.generateContent(prompt)
+            }
+            val rawJson = response.text ?: throw IllegalStateException("Model returned empty flashcards.")
+            val root = JSONObject(rawJson)
+            val summary = root.optString("summary", "")
+            val cardsArr = root.getJSONArray("cards")
+            val cards = (0 until cardsArr.length()).map { i ->
+                val obj = cardsArr.getJSONObject(i)
+                GeneratedFlashcard(
+                    front = obj.getString("front"),
+                    back = obj.getString("back"),
+                    memoryTip = obj.optString("memoryTip", "")
+                )
+            }
+            Result.success(GeneratedFlashcardsBundle(summary = summary, cards = cards))
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "Flashcards generation timed out", e)
+            Result.failure(e)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Flashcards generation failed", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun generateEducationalVisual(
+        promptText: String,
+        referenceBitmap: Bitmap?,
+    ): Result<Bitmap> {
+        return try {
+            val fullPrompt = "Create a clear, clean, high-contrast educational illustration or diagram for students: $promptText"
+            val response = withTimeout(60_000L) {
+                if (referenceBitmap != null) {
+                    educationalImageModel.generateContent(
+                        content {
+                            image(referenceBitmap)
+                            text(fullPrompt)
+                        }
+                    )
+                } else {
+                    educationalImageModel.generateContent(fullPrompt)
+                }
+            }
+            val imagePart = response.candidates.firstOrNull()
+                ?.content?.parts?.filterIsInstance<ImagePart>()
+                ?.firstOrNull()
+            val bitmap = imagePart?.image
+            if (bitmap != null) {
+                Result.success(bitmap)
+            } else {
+                Result.failure(IllegalStateException("No educational image was returned by the model."))
+            }
+        } catch (e: TimeoutCancellationException) {
+            Log.e(TAG, "Educational image generation timed out", e)
+            Result.failure(e)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Educational image generation failed", e)
+            Result.failure(e)
         }
     }
 

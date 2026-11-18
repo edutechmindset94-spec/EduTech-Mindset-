@@ -2,8 +2,6 @@ package com.example.ui.screens
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,13 +27,18 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.FamilyRestroom
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.Style
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -70,12 +73,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.core.LocalAppStrings
+import com.example.data.model.AiToolTab
 import com.example.data.model.Course
 import com.example.data.model.ExternalPlatform
 import com.example.data.model.NotificationCategory
@@ -85,6 +88,7 @@ import com.example.data.model.StudentStatus
 import com.example.data.model.UiState
 import com.example.data.model.UserProfile
 import com.example.data.model.UserRole
+import com.example.ui.components.AcademyAsyncImage
 import com.example.ui.theme.AcademyNavy
 import com.example.ui.theme.AcademyNavyDeep
 import com.example.ui.theme.AcademyTeal
@@ -141,7 +145,9 @@ fun DashboardScreen(
     onIncrementStudent: (StudentRecord) -> Unit,
     onSendNotification: (String, String, NotificationCategory, Boolean) -> Unit,
     onMarkNotificationRead: (String) -> Unit,
+    onAdvanceCourseLesson: (Course) -> Unit,
     onNavigateToCourses: () -> Unit,
+    onOpenAiStudio: (AiToolTab) -> Unit,
 ) {
     val strings = LocalAppStrings.current
     val context = LocalContext.current
@@ -174,8 +180,8 @@ fun DashboardScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Box(modifier = Modifier.fillMaxWidth()) {
-                    Image(
-                        painter = painterResource(id = R.drawable.img_hero_edutech),
+                    AcademyAsyncImage(
+                        resId = R.drawable.img_hero_edutech,
                         contentDescription = strings.brandTitle,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -208,8 +214,8 @@ fun DashboardScreen(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Image(
-                                    painter = painterResource(id = R.drawable.img_educator_emblem),
+                                AcademyAsyncImage(
+                                    resId = R.drawable.img_educator_emblem,
                                     contentDescription = strings.directorBadge,
                                     modifier = Modifier
                                         .size(46.dp)
@@ -325,62 +331,86 @@ fun DashboardScreen(
             }
         }
 
-        // 3. Real-Time Student Progress Tracking (Prominently shown in Teacher Mode, collapsible/viewable for Students)
-        item {
-            AnimatedVisibility(visible = currentRole == UserRole.TEACHER || students.isNotEmpty()) {
-                Column(
+        // 2a. AI Tools in Education Quick-Launch Studio Card
+        item(key = "ai_education_studio_card") {
+            AiEducationStudioBanner(
+                onOpenAiStudio = onOpenAiStudio
+            )
+        }
+
+        // 2b. Student Dashboard Layout: Quick Access Ongoing Modules, Active Learning Progress & Available Courses
+        if (currentRole == UserRole.STUDENT) {
+            studentDashboardItems(
+                coursesState = coursesState,
+                strings = strings,
+                onAdvanceLesson = onAdvanceCourseLesson,
+                onNavigateToCourses = onNavigateToCourses
+            )
+        }
+
+        // 3. Real-Time Student Progress Tracking (Teacher Mode)
+        if (currentRole == UserRole.TEACHER) {
+            item(key = "teacher_student_progress_header") {
+                Row(
                     modifier = Modifier
                         .widthIn(max = 680.dp)
                         .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = strings.studentProgressTitle,
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        AssistChip(
-                            onClick = { showAddStudentDialog = true },
-                            label = { Text(strings.addStudentBtn) },
-                            leadingIcon = { Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                            modifier = Modifier.testTag("add_student_button")
-                        )
-                    }
+                    Text(
+                        text = strings.studentProgressTitle,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    AssistChip(
+                        onClick = { showAddStudentDialog = true },
+                        label = { Text(strings.addStudentBtn) },
+                        leadingIcon = { Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        modifier = Modifier.testTag("add_student_button")
+                    )
+                }
+            }
 
-                    when (studentsState) {
-                        is UiState.Loading -> CircularProgressIndicator(Modifier.padding(16.dp))
-                        is UiState.Error -> ErrorCard(studentsState.message)
-                        is UiState.Success -> {
-                            if (studentsState.data.isEmpty()) {
-                                EmptyStateCard(strings.emptyStudentsMsg)
-                            } else {
-                                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    studentsState.data.forEach { student ->
-                                        StudentProgressCard(
-                                            record = student,
-                                            isArabic = strings.isArabic,
-                                            onAdvance = { onIncrementStudent(student) },
-                                            onNotifyParent = {
-                                                onSendNotification(
-                                                    if (strings.isArabic) "تحديث لولي أمر: ${student.studentName}" else "Parent Update: ${student.studentName}",
-                                                    if (strings.isArabic) "نسبة الإنجاز ${student.progressPercent}% والاختبار ${student.quizScore}%." else "Progress ${student.progressPercent}%, Quiz ${student.quizScore}%.",
-                                                    NotificationCategory.PARENT_SCHOOL,
-                                                    true
-                                                )
-                                            }
+            when (studentsState) {
+                is UiState.Loading -> item(key = "students_loading") { CircularProgressIndicator(Modifier.padding(16.dp)) }
+                is UiState.Error -> item(key = "students_error") {
+                    Box(Modifier.widthIn(max = 680.dp).fillMaxWidth()) { ErrorCard(studentsState.message) }
+                }
+                is UiState.Success -> {
+                    if (studentsState.data.isEmpty()) {
+                        item(key = "students_empty") {
+                            Box(Modifier.widthIn(max = 680.dp).fillMaxWidth()) { EmptyStateCard(strings.emptyStudentsMsg) }
+                        }
+                    } else {
+                        items(studentsState.data, key = { "student_${it.id}" }) { student ->
+                            Box(Modifier.widthIn(max = 680.dp).fillMaxWidth()) {
+                                StudentProgressCard(
+                                    record = student,
+                                    isArabic = strings.isArabic,
+                                    onAdvance = { onIncrementStudent(student) },
+                                    onNotifyParent = {
+                                        onSendNotification(
+                                            if (strings.isArabic) "تحديث لولي أمر: ${student.studentName}" else "Parent Update: ${student.studentName}",
+                                            if (strings.isArabic) "نسبة الإنجاز ${student.progressPercent}% والاختبار ${student.quizScore}%." else "Progress ${student.progressPercent}%, Quiz ${student.quizScore}%.",
+                                            NotificationCategory.PARENT_SCHOOL,
+                                            true
                                         )
                                     }
-                                }
+                                )
                             }
                         }
                     }
                 }
             }
+
+            // 3b. Quick Access & Courses Overview for Teacher Mode
+            studentDashboardItems(
+                coursesState = coursesState,
+                strings = strings,
+                onAdvanceLesson = onAdvanceCourseLesson,
+                onNavigateToCourses = onNavigateToCourses
+            )
         }
 
         // 4. Smart Notifications & Home-School Communication
@@ -521,6 +551,110 @@ fun DashboardScreen(
                 showAddAlertDialog = false
             }
         )
+    }
+}
+
+@Composable
+private fun AiEducationStudioBanner(
+    onOpenAiStudio: (AiToolTab) -> Unit,
+) {
+    val strings = LocalAppStrings.current
+    Card(
+        modifier = Modifier
+            .widthIn(max = 680.dp)
+            .fillMaxWidth()
+            .testTag("dashboard_ai_studio_card"),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            AcademyTeal.copy(alpha = 0.14f),
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                        )
+                    )
+                )
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Surface(
+                        color = AcademyTeal,
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Column {
+                        Text(
+                            text = strings.aiStudioTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = strings.aiStudioSubtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val shortcuts = listOf(
+                    Triple(AiToolTab.TUTOR, strings.aiToolTutor, Icons.Default.Psychology),
+                    Triple(AiToolTab.VISION, strings.aiToolVision, Icons.Default.CameraAlt),
+                    Triple(AiToolTab.QUIZ, strings.aiToolQuiz, Icons.Default.Quiz),
+                    Triple(AiToolTab.FLASHCARDS, strings.aiToolFlashcards, Icons.Default.Style),
+                    Triple(AiToolTab.VISUALS, strings.aiToolVisuals, Icons.Default.Image),
+                )
+                items(shortcuts, key = { it.first.name }) { (tab, label, icon) ->
+                    AssistChip(
+                        onClick = { onOpenAiStudio(tab) },
+                        label = { Text(label) },
+                        leadingIcon = {
+                            Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = AcademyTeal)
+                        },
+                        modifier = Modifier.testTag("shortcut_ai_${tab.name.lowercase()}")
+                    )
+                }
+            }
+
+            Button(
+                onClick = { onOpenAiStudio(AiToolTab.TUTOR) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .testTag("open_ai_studio_button"),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(8.dp))
+                Text(strings.openAiStudioBtn)
+            }
+        }
     }
 }
 

@@ -66,11 +66,14 @@ fun AppRoot() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val preferencesStore = remember(context) { PreferencesStore(context) }
-    val localPrefs by preferencesStore.preferences.collectAsStateWithLifecycle(
+    val localPrefsFlow = remember(preferencesStore) { preferencesStore.preferences }
+    val localPrefs by localPrefsFlow.collectAsStateWithLifecycle(
         initialValue = LocalAppPreferences()
     )
-    val currentUser by Firebase.auth.authStateFlow().collectAsStateWithLifecycle(
-        initialValue = Firebase.auth.currentUser
+    val firebaseAuth = remember { Firebase.auth }
+    val authFlow = remember(firebaseAuth) { firebaseAuth.authStateFlow() }
+    val currentUser by authFlow.collectAsStateWithLifecycle(
+        initialValue = firebaseAuth.currentUser
     )
 
     val isArabic = localPrefs.language != "EN"

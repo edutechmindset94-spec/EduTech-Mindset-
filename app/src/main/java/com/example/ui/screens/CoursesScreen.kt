@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,7 +55,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.R
@@ -67,9 +65,11 @@ import com.example.data.model.LessonPlan
 import com.example.data.model.PaymentGateway
 import com.example.data.model.QuizQuestion
 import com.example.data.model.UiState
+import com.example.ui.components.AcademyAsyncImage
 import com.example.ui.theme.AcademyTeal
 import com.example.ui.theme.EmeraldSuccess
 import com.example.ui.theme.ScholarGold
+import java.util.Locale
 
 private val CurriculumQuizQuestions = listOf(
     QuizQuestion(
@@ -382,8 +382,8 @@ private fun CourseCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column {
-            Image(
-                painter = painterResource(id = thumbRes),
+            AcademyAsyncImage(
+                resId = thumbRes,
                 contentDescription = course.title,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -408,7 +408,7 @@ private fun CourseCard(
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Icon(Icons.Default.Star, contentDescription = null, tint = ScholarGold, modifier = Modifier.size(16.dp))
-                        Text(text = String.format("%.1f", course.rating), style = MaterialTheme.typography.labelMedium)
+                        Text(text = String.format(Locale.US, "%.1f", course.rating), style = MaterialTheme.typography.labelMedium)
                     }
                 }
 
@@ -717,7 +717,7 @@ private fun CourseEvaluationQuizDialog(
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item {
                     Text(
-                        text = if (isArabic) "تقييم جودة المنهج: ${String.format("%.1f", rating)} / 5" else "Rating: ${String.format("%.1f", rating)} / 5",
+                        text = if (isArabic) "تقييم جودة المنهج: ${String.format(Locale.US, "%.1f", rating)} / 5" else "Rating: ${String.format(Locale.US, "%.1f", rating)} / 5",
                         style = MaterialTheme.typography.titleSmall
                     )
                     Slider(value = rating, onValueChange = { rating = it }, valueRange = 1f..5f)
